@@ -115,13 +115,12 @@ def test_request():
 
 def handler(event, context):
     collections = scrape_council_site()
-    message_sent = False
+    message_sent = []
     for collection in collections:
-        message_sent = check_alert_collection(collection)
-        print(f'message_sent: {message_sent}')
+        message_sent.append(check_alert_collection(collection))
 
     print(f'message_sent: set to {message_sent}')
     today_weekday = datetime.datetime.today().weekday()
     print(f'today_weekday: set to {today_weekday}')
-    if today_weekday == 6 and not message_sent:
+    if today_weekday == 6 and not any(message_sent):
         send_telegram('No bin services processed, manually check incase I am broken')
