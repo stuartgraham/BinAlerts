@@ -70,6 +70,7 @@ def message_builder(colour, date):
     blue_square = '🟦'
     grey_square = '⬛'
     green_square = '🟩'
+    purple_square = '🟪'
     trash_can = '🗑️'
     square = locals()[colour.lower() + '_square']
     return f'{trash_can} {square} {colour.upper()} BIN {square} {trash_can} due out for collection tomorrow {date} '
@@ -77,11 +78,11 @@ def message_builder(colour, date):
 
 def lookup_bin_colour(bin_type):
     if bin_type == 'garden':
-        return 'green'
+        return ['green']
     if bin_type == 'recycling':
-        return 'blue'
+        return ['blue', 'purple']
     if bin_type == 'rubbish':
-        return 'grey'
+        return ['grey']
 
 
 def check_alert_collection(collection):
@@ -95,11 +96,12 @@ def check_alert_collection(collection):
     print(str(time_difference_hours))
     
     if int(time_difference_hours) < TIME_THRESHOLD and int(time_difference_hours) > 0:
-        bin_colour = lookup_bin_colour(collection['type'])
+        bin_colours = lookup_bin_colour(collection['type'])
         bin_date =  collection_time.strftime('%d/%m/%Y')
-        message = message_builder(bin_colour, bin_date)
-        send_telegram(message)
-        print(message)
+        for bin_colour in bin_colours:
+            message = message_builder(bin_colour, bin_date):
+            send_telegram(message)
+            print(message)
         return True
     return False
 
@@ -116,6 +118,10 @@ def handler(event, context):
     message_sent = False
     for collection in collections:
         message_sent = check_alert_collection(collection)
+        print(f'message_sent: {message_sent}')
 
-    if datetime.datetime.today().weekday() == 6 and not message_sent:
+    print(f'message_sent: set to {message_sent}')
+    today_weekday = datetime.datetime.today().weekday()
+    print(f'today_weekday: set to {today_weekday}')
+    if today_weekday == 6 and not message_sent:
         send_telegram('No bin services processed, manually check incase I am broken')
