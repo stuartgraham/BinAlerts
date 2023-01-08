@@ -99,7 +99,7 @@ def check_alert_collection(collection):
         bin_colours = lookup_bin_colour(collection['type'])
         bin_date =  collection_time.strftime('%d/%m/%Y')
         for bin_colour in bin_colours:
-            message = message_builder(bin_colour, bin_date):
+            message = message_builder(bin_colour, bin_date)
             send_telegram(message)
             print(message)
         return True
