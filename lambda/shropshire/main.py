@@ -6,6 +6,7 @@ from tempfile import mkdtemp
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
+from selenium.webdriver.chrome.service import Service
 
 
 PROPERTY_ID : str = osenv.get('PROPERTY_ID')
@@ -16,6 +17,7 @@ SERVICES_URL = f'https://bins.shropshire.gov.uk/property/{PROPERTY_ID}#services'
 
 # Build Selenium Driver
 def selenium_driver():
+    service = Service(executable_path=r'/opt/chromedriver')
     options = webdriver.ChromeOptions()
     options.binary_location = '/opt/chrome/chrome'
     options.add_argument('--headless')
@@ -30,8 +32,9 @@ def selenium_driver():
     options.add_argument(f'--data-path={mkdtemp()}')
     options.add_argument(f'--disk-cache-dir={mkdtemp()}')
     options.add_argument('--remote-debugging-port=9222')
-    driver = webdriver.Chrome('/opt/chromedriver', options=options)
+    driver = webdriver.Chrome(service=service, options=options)
     return driver
+
 
 # Scrape council site data
 def scrape_council_site():
