@@ -38,16 +38,24 @@ def scrape_council_site():
         # Wait for content to load (the site has dynamic content)
         page.wait_for_timeout(3000)
         
-        # Service IDs: 469=garden, 467=recycling, 465=rubbish
+        # Try service IDs first, fallback to text search
         service_map = {
             '469': 'garden',
-            '467': 'recycling', 
+            '467': 'recycling',
             '465': 'rubbish'
         }
-        
+
+        text_map = {
+            'Recycling Collection': 'recycling',
+            'General Waste Collection': 'rubbish',
+            'Garden Waste Collection': 'garden'
+        }
+
+        found_types = set()
+
+        # Method 1: Service IDs
         for service_id, bin_type in service_map.items():
             try:
-                # Find the row for this service
                 row = page.locator(f"tr.service-id-{service_id}").first
                 if row.is_visible():
                     next_service = row.locator("td.next-service").first
@@ -58,8 +66,30 @@ def scrape_council_site():
                                 'type': bin_type,
                                 'datetime': f'{date_text} 07:00:00'
                             })
+                            found_types.add(bin_type)
+                            print(f"Found {bin_type} via service ID {service_id}: {date_text}")
             except Exception as e:
-                print(f"Could not find {bin_type}: {e}")
+                print(f"Service ID {service_id} not found: {e}")
+
+        # Method 2: Fallback to text search for any missing types
+        for text_pattern, bin_type in text_map.items():
+            if bin_type not in found_types:
+                try:
+                    # Find row containing this text
+                    row = page.locator("tr", has_text=text_pattern).first
+                    if row.is_visible():
+                        # Look for next collection in this row or nearby
+                        next_service = row.locator("td.next-service").first
+                        if next_service.is_visible():
+                            date_text = next_service.text_content().strip()
+                            if date_text and '/' in date_text:
+                                bin_collections.append({
+                                    'type': bin_type,
+                                    'datetime': f'{date_text} 07:00:00'
+                                })
+                                print(f"Found {bin_type} via text search: {date_text}")
+                except Exception as e:
+                    print(f"Text search for {text_pattern} failed: {e}")
         
         browser.close()
     
