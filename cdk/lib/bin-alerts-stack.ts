@@ -47,7 +47,7 @@ export class BinAlertsStack extends cdk.Stack {
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/shropshire')),
       timeout: cdk.Duration.seconds(45),
       memorySize: 1024,  // Required for Chromium
-      architecture: lambda.Architecture.ARM_64,  // 20% cheaper
+      architecture: lambda.Architecture.X86_64,  // x86_64 has better layer availability
       logRetention: logs.RetentionDays.THREE_DAYS,
       environment: {
         ENVIRONMENT: env,
@@ -57,18 +57,12 @@ export class BinAlertsStack extends cdk.Stack {
         LOG_LEVEL: 'INFO'
       },
       layers: [
-        // Sparticuz Chromium (ARM64, Python 3.12) - v132 is confirmed working
+        // Sparticuz Chromium (x86_64, Python 3.12)
+        // https://github.com/sparticuz/chromium
         lambda.LayerVersion.fromLayerVersionArn(
           this,
           'ChromiumLayer',
           `arn:aws:lambda:${this.region}:764866452798:layer:chromium:132`
-        ),
-        // Klayers Playwright for Python 3.12 (ARM64)
-        // https://github.com/keithrozario/Klayers
-        lambda.LayerVersion.fromLayerVersionArn(
-          this,
-          'PlaywrightLayer',
-          `arn:aws:lambda:${this.region}:770693421928:layer:Klayers-p312-playwright:1`
         )
       ],
       retryAttempts: 1,  // Reduced from 2 to save costs on failures
