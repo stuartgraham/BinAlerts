@@ -1,5 +1,2 @@
-# Dependencies are provided by Lambda layers:
-# - Chromium layer: Includes Chromium binary
-# - Playwright layer: Includes playwright Python package
-# 
-# No additional dependencies needed for deployment
+boto3>=1.34.0
+botocore>=1.34.0
