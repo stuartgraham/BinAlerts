@@ -57,15 +57,17 @@ export class BinAlertsStack extends cdk.Stack {
         LOG_LEVEL: 'INFO'
       },
       layers: [
+        // Chromium v143.0.4 (latest as of Jan 2026)
         lambda.LayerVersion.fromLayerVersionArn(
           this,
           'ChromiumLayer',
-          `arn:aws:lambda:${this.region}:764866452798:layer:chromium:132`
+          `arn:aws:lambda:${this.region}:764866452798:layer:chromium:143`
         ),
+        // Playwright for Python
         lambda.LayerVersion.fromLayerVersionArn(
           this,
           'PlaywrightLayer',
-          `arn:aws:lambda:${this.region}:764866452798:layer:playwright:8`
+          `arn:aws:lambda:${this.region}:764866452798:layer:playwright:9`
         )
       ],
       retryAttempts: 1,  // Reduced from 2 to save costs on failures
