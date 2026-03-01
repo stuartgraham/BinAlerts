@@ -36,7 +36,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: cdk/package-lock.json
 
-      - run: npm ci
+      - run: npm install  # Using install instead of ci to generate lock file
 
       - run: npx cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_NUMBER }}/eu-west-1
 
