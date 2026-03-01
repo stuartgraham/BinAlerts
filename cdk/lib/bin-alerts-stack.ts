@@ -39,34 +39,21 @@ export class BinAlertsStack extends cdk.Stack {
       description: 'Telegram chat ID for notifications'
     });
 
-    // Lambda function - frugal configuration
-    const binAlertsFunction = new lambda.Function(this, 'BinAlertsFunction', {
+    // Lambda function - Docker-based with Playwright/Chromium built-in
+    const binAlertsFunction = new lambda.DockerImageFunction(this, 'BinAlertsFunction', {
       functionName: `binalerts-${env}`,
-      runtime: lambda.Runtime.PYTHON_3_12,
-      handler: 'main.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambda/shropshire')),
+      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../lambda/shropshire')),
       timeout: cdk.Duration.seconds(45),
       memorySize: 1024,  // Required for Chromium
-      architecture: lambda.Architecture.X86_64,  // x86_64 has better layer availability
+      architecture: lambda.Architecture.X86_64,
       logRetention: logs.RetentionDays.THREE_DAYS,
       environment: {
         ENVIRONMENT: env,
         SSM_PREFIX: `/binalerts/${env}`,
-        PLAYWRIGHT_BROWSERS_PATH: '0',
-        PYTHONPATH: '/opt/python',
         LOG_LEVEL: 'INFO'
       },
-      layers: [
-        // Sparticuz Chromium (x86_64, Python 3.12)
-        // https://github.com/sparticuz/chromium
-        lambda.LayerVersion.fromLayerVersionArn(
-          this,
-          'ChromiumLayer',
-          `arn:aws:lambda:${this.region}:764866452798:layer:chromium:132`
-        )
-      ],
-      retryAttempts: 1,  // Reduced from 2 to save costs on failures
-      deadLetterQueueEnabled: false  // Disabled to save on SQS costs
+      retryAttempts: 1,
+      deadLetterQueueEnabled: false
     });
 
     // Grant Lambda access to SSM parameters
@@ -100,8 +87,8 @@ export class BinAlertsStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'MonthlyCostEstimate', {
-      value: '~$0.05-0.10',
-      description: 'Estimated monthly cost'
+      value: '~$0.10-0.20',
+      description: 'Estimated monthly cost (Docker Lambda + ECR storage)'
     });
   }
 }
