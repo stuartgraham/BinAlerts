@@ -57,17 +57,18 @@ export class BinAlertsStack extends cdk.Stack {
         LOG_LEVEL: 'INFO'
       },
       layers: [
-        // Chromium v143.0.4 (latest as of Jan 2026)
+        // Sparticuz Chromium (ARM64, Python 3.12) - v132 is confirmed working
         lambda.LayerVersion.fromLayerVersionArn(
           this,
           'ChromiumLayer',
-          `arn:aws:lambda:${this.region}:764866452798:layer:chromium:143`
+          `arn:aws:lambda:${this.region}:764866452798:layer:chromium:132`
         ),
-        // Playwright for Python
+        // Klayers Playwright for Python 3.12 (ARM64)
+        // https://github.com/keithrozario/Klayers
         lambda.LayerVersion.fromLayerVersionArn(
           this,
           'PlaywrightLayer',
-          `arn:aws:lambda:${this.region}:764866452798:layer:playwright:9`
+          `arn:aws:lambda:${this.region}:770693421928:layer:Klayers-p312-playwright:1`
         )
       ],
       retryAttempts: 1,  // Reduced from 2 to save costs on failures
