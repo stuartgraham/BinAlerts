@@ -5,9 +5,9 @@ Scrapes Shropshire Council bin collection dates and sends Telegram notifications
 ## Architecture
 
 - **Lambda Function**: Runs daily at 19:07 using EventBridge
-- **Playwright + Chromium**: Headless browser scraping (avoids bot detection)
+- **Docker Container**: Playwright + Chromium built-in (avoids bot detection, more reliable than layers)
 - **SSM Parameter Store**: Configuration storage (free tier)
-- **ARM64 Architecture**: 20% cheaper compute
+- **x86_64 Architecture**: Better compatibility with Docker images
 
 ## Project Structure
 
@@ -21,14 +21,16 @@ Scrapes Shropshire Council bin collection dates and sends Telegram notifications
 ├── lambda/                # Lambda function code
 │   └── shropshire/
 │       ├── main.py        # Scraper logic
-│       └── requirements.txt
+│       ├── requirements.txt
+│       └── Dockerfile     # Docker image with Playwright
 └── .github/workflows/     # CI/CD
 ```
 
 ## Cost
 
-Approximately **$0.05-0.10/month**:
-- Lambda: ~$0.02/month (1024MB, ARM64, daily invocation)
+Approximately **$0.10-0.20/month**:
+- Lambda: ~$0.02/month (1024MB, x86_64, daily invocation)
+- ECR Storage: ~$0.05/month (Docker image storage)
 - SSM Parameter Store: Free tier (3 parameters)
 - CloudWatch Logs: ~$0.03/month (3-day retention)
 
@@ -49,8 +51,9 @@ Go to Settings → Secrets and variables → Actions, add:
 
 Push to main branch - GitHub Actions will:
 1. Bootstrap CDK (if needed)
-2. Deploy the stack
-3. Create placeholder SSM parameters
+2. Build and push Docker image to ECR
+3. Deploy the stack
+4. Create placeholder SSM parameters
 
 ### 4. Configure SSM Parameters
 
@@ -86,14 +89,16 @@ Manually invoke the Lambda function in AWS Console to verify it works.
 
 ### Local Testing
 
-The Lambda uses Lambda layers for Playwright/Chromium, so local testing requires:
+The Lambda uses a Docker image with Playwright/Chromium pre-installed:
 
 ```bash
 cd lambda/shropshire
-pip install -r requirements.txt  # boto3 only, playwright comes from layer
 
-# For local browser testing (optional):
-pip install playwright
+# Build Docker image locally
+docker build -t binalerts-local .
+
+# Or test Python directly (requires playwright install):
+pip install playwright boto3 botocore
 playwright install chromium
 python main.py
 ```
@@ -105,7 +110,7 @@ cd cdk
 npm install
 npx cdk synth    # Synthesize CloudFormation template
 npx cdk diff     # Show changes
-npx cdk deploy   # Deploy stack
+npx cdk deploy   # Deploy stack (builds Docker image automatically)
 ```
 
 ## Troubleshooting
@@ -124,6 +129,11 @@ npx cdk deploy   # Deploy stack
 - Ensure log retention is 3 days (configured in stack)
 - Check Lambda isn't being invoked excessively
 - SSM is on free tier (up to 10,000 API calls/month)
+- ECR: Image is small (~500MB), costs ~$0.05/month
+
+**Docker build fails?**
+- Ensure Docker is running locally
+- Check GitHub Actions has Docker permissions (uses setup-buildx-action)
 
 ## License
 
