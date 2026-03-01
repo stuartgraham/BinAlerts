@@ -1,129 +1,150 @@
 import datetime
-import time
-from os import environ as osenv
-import requests
-from tempfile import mkdtemp
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import Select
-from selenium.webdriver.chrome.service import Service
+import os
+import json
+import re
+from playwright.sync_api import sync_playwright
+
+PROPERTY_ID = os.environ.get('PROPERTY_ID')
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+CHAT_ID = os.environ.get('CHAT_ID')
+
+SERVICES_URL = f'https://bins.shropshire.gov.uk/property/{PROPERTY_ID}'
 
 
-PROPERTY_ID : str = osenv.get('PROPERTY_ID')
-BOT_TOKEN : str = osenv.get('BOT_TOKEN')
-CHAT_ID : str = osenv.get('CHAT_ID')
-
-SERVICES_URL = f'https://bins.shropshire.gov.uk/property/{PROPERTY_ID}#services'
-
-# Build Selenium Driver
-def selenium_driver():
-    service = Service(executable_path=r'/opt/chromedriver')
-    options = webdriver.ChromeOptions()
-    options.binary_location = '/opt/chrome/chrome'
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--window-size=1280x1696')
-    options.add_argument('--single-process')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-dev-tools')
-    options.add_argument('--no-zygote')
-    options.add_argument(f'--user-data-dir={mkdtemp()}')
-    options.add_argument(f'--data-path={mkdtemp()}')
-    options.add_argument(f'--disk-cache-dir={mkdtemp()}')
-    options.add_argument('--remote-debugging-port=9222')
-    driver = webdriver.Chrome(service=service, options=options)
-    return driver
-
-
-# Scrape council site data
 def scrape_council_site():
-    driver = selenium_driver()
-    driver.get(SERVICES_URL)
-    
-    print('WAIT: Waiting 80 seconds for load')
-    #Service has a likely 60 second stall on it, 20 second buffer
-    driver.implicitly_wait(80)
-
+    """Scrape using Playwright with headless Chromium"""
     bin_collections = []
-
-    print('COLLECTIONDATA: Trying to load collection content')
-    # Find specific elements
-    garden_waste = driver.find_element(By.XPATH, "*//tr[contains(@class,'service-id-469')]/td[contains(@class,'next-service')]")
-    bin_collections.append({'type': 'garden', 'datetime': f'{garden_waste.text} 07:00:00'} )
-    recycling = driver.find_element(By.XPATH, "*//tr[contains(@class,'service-id-467')]/td[contains(@class,'next-service')]")
-    bin_collections.append({'type': 'recycling', 'datetime': f'{recycling.text} 07:00:00'})
-    rubbish = driver.find_element(By.XPATH, "*//tr[contains(@class,'service-id-465')]/td[contains(@class,'next-service')]")
-    bin_collections.append({'type': 'rubbish', 'datetime': f'{rubbish.text} 07:00:00'}) 
-
-
-    time.sleep(2.3)
-    driver.quit()
+    
+    with sync_playwright() as p:
+        # Use the chromium from Lambda layer
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                '--no-sandbox',
+                '--disable-gpu',
+                '--disable-dev-shm-usage',
+                '--disable-setuid-sandbox',
+                '--single-process'
+            ]
+        )
+        
+        context = browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        )
+        
+        page = context.new_page()
+        page.goto(SERVICES_URL, wait_until='networkidle', timeout=30000)
+        
+        # Wait for content to load (the site has dynamic content)
+        page.wait_for_timeout(3000)
+        
+        # Service IDs: 469=garden, 467=recycling, 465=rubbish
+        service_map = {
+            '469': 'garden',
+            '467': 'recycling', 
+            '465': 'rubbish'
+        }
+        
+        for service_id, bin_type in service_map.items():
+            try:
+                # Find the row for this service
+                row = page.locator(f"tr.service-id-{service_id}").first
+                if row.is_visible():
+                    next_service = row.locator("td.next-service").first
+                    if next_service.is_visible():
+                        date_text = next_service.text_content().strip()
+                        if date_text:
+                            bin_collections.append({
+                                'type': bin_type,
+                                'datetime': f'{date_text} 07:00:00'
+                            })
+            except Exception as e:
+                print(f"Could not find {bin_type}: {e}")
+        
+        browser.close()
+    
     return bin_collections
 
 
 def send_telegram(message):
-    url_string = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage?chat_id={CHAT_ID}&parse_mode=Markdown&text={message}'
-    response = requests.get(url_string)
-    print('SENDTELEGRAM: Message sending')
-    print(response.json())
+    import urllib.request
+    import urllib.parse
+    
+    url = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage'
+    params = urllib.parse.urlencode({
+        'chat_id': CHAT_ID,
+        'parse_mode': 'Markdown',
+        'text': message
+    })
+    
+    req = urllib.request.Request(f"{url}?{params}")
+    with urllib.request.urlopen(req, timeout=10) as response:
+        print(f'SENDTELEGRAM: {response.read().decode()}')
 
 
 def message_builder(colour, date):
-    blue_square = '🟦'
-    grey_square = '⬛'
-    green_square = '🟩'
-    purple_square = '🟪'
-    trash_can = '🗑️'
-    square = locals()[colour.lower() + '_square']
-    return f'{trash_can} {square} {colour.upper()} BIN {square} {trash_can} due out for collection tomorrow {date} '
+    squares = {
+        'blue': '🟦',
+        'grey': '⬛',
+        'green': '🟩',
+        'purple': '🟪'
+    }
+    square = squares.get(colour.lower(), '⬜')
+    return f'🗑️ {square} {colour.upper()} BIN {square} 🗑️ due out for collection tomorrow {date}'
 
 
 def lookup_bin_colour(bin_type):
-    if bin_type == 'garden':
-        return ['green']
-    if bin_type == 'recycling':
-        return ['blue', 'purple']
-    if bin_type == 'rubbish':
-        return ['grey']
+    colours = {
+        'garden': ['green'],
+        'recycling': ['blue', 'purple'],
+        'rubbish': ['grey']
+    }
+    return colours.get(bin_type, [])
 
 
 def check_alert_collection(collection):
-    # collection example
-    # {'type': 'recycling', 'datetime': '09/01/2023 07:00:00'}
-    TIME_THRESHOLD = 24
-    now_time = datetime.datetime.now()
-    collection_time = datetime.datetime.strptime(collection['datetime'], '%d/%m/%Y %H:%M:%S')
-    time_difference = collection_time - now_time
-    time_difference_hours = time_difference.total_seconds()/(60*60)
-    print(str(time_difference_hours))
+    TIME_THRESHOLD = 24  # hours
+    now = datetime.datetime.now()
+    collection_time = datetime.datetime.strptime(
+        collection['datetime'], 
+        '%d/%m/%Y %H:%M:%S'
+    )
+    hours_diff = (collection_time - now).total_seconds() / 3600
     
-    if int(time_difference_hours) < TIME_THRESHOLD and int(time_difference_hours) > 0:
+    print(f"{collection['type']}: {hours_diff:.1f} hours until collection")
+    
+    if 0 < hours_diff < TIME_THRESHOLD:
         bin_colours = lookup_bin_colour(collection['type'])
-        bin_date =  collection_time.strftime('%d/%m/%Y')
-        for bin_colour in bin_colours:
-            message = message_builder(bin_colour, bin_date)
+        bin_date = collection_time.strftime('%d/%m/%Y')
+        for colour in bin_colours:
+            message = message_builder(colour, bin_date)
             send_telegram(message)
-            print(message)
+            print(f"Sent: {message}")
         return True
     return False
 
-def test_request():
-    driver = selenium_driver()
-    print(f'Retrieving {SERVICES_URL}')
-    driver.get(SERVICES_URL)
-    driver.implicitly_wait(80)
-    html = driver.page_source
-    print(html)
 
 def handler(event, context):
-    collections = scrape_council_site()
-    message_sent = []
-    for collection in collections:
-        message_sent.append(check_alert_collection(collection))
+    try:
+        collections = scrape_council_site()
+        print(f"Found {len(collections)} collections")
+        
+        message_sent = []
+        for collection in collections:
+            message_sent.append(check_alert_collection(collection))
+        
+        # Sunday (weekday 6) check - send alert if no messages sent
+        if datetime.datetime.today().weekday() == 6 and not any(message_sent):
+            send_telegram('No bin services processed, manually check in case I am broken')
+        
+        return {'statusCode': 200, 'body': json.dumps({'collections': len(collections), 'messages_sent': sum(message_sent)})}
+    
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        # Send error notification
+        send_telegram(f'BinAlerts error: {str(e)[:100]}')
+        raise
 
-    print(f'message_sent: set to {message_sent}')
-    today_weekday = datetime.datetime.today().weekday()
-    print(f'today_weekday: set to {today_weekday}')
-    if today_weekday == 6 and not any(message_sent):
-        send_telegram('No bin services processed, manually check incase I am broken')
+
+if __name__ == '__main__':
+    handler(None, None)

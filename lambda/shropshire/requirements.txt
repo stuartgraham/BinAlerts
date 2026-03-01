@@ -1,0 +1,5 @@
+# Dependencies are provided by Lambda layers:
+# - Chromium layer: Includes Chromium binary
+# - Playwright layer: Includes playwright Python package
+# 
+# No additional dependencies needed for deployment
