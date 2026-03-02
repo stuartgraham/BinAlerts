@@ -1,12 +1,14 @@
 name: CDK Deploy
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'cdk/**'
-      - 'lambda/**'
-      - '.github/workflows/**'
+  # Temporarily disabled - uncomment to re-enable automatic deployments
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'cdk/**'
+  #     - 'lambda/**'
+  #     - '.github/workflows/**'
+  workflow_dispatch:
 
 permissions:
   id-token: write
