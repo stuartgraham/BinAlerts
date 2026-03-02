@@ -1,6 +1,22 @@
-# BinAlerts
+# BinAlerts ⚠️ ARCHIVED
+
+**This project is archived and no longer actively maintained.**
 
 Scrapes Shropshire Council bin collection dates and sends Telegram notifications the day before.
+
+---
+
+## Project Status: Archived 🗃️
+
+**Why archived?** This was a frugal, production-ready AWS Lambda system for personal use. The project achieved all its goals:
+- ✅ Docker-based Lambda with Playwright/Chromium
+- ✅ Cost-optimized (~$0.15/month)
+- ✅ CI/CD with GitHub Actions
+- ✅ No unnecessary AWS costs (no Secrets Manager, no alarms, no DLQs)
+
+The system is feature-complete and stable. Archived to prevent accidental deployments.
+
+---
 
 ## Architecture
 
@@ -36,6 +52,8 @@ Approximately **$0.10-0.20/month**:
 
 ## Setup
 
+**⚠️ Automatic deployment is disabled.** The GitHub Actions workflow requires manual triggering via `workflow_dispatch`.
+
 ### 1. Fork/Clone Repository
 
 ### 2. Configure GitHub Secrets
@@ -49,7 +67,9 @@ Go to Settings → Secrets and variables → Actions, add:
 
 ### 3. Deploy Infrastructure
 
-Push to main branch - GitHub Actions will:
+**Manual deployment only:** Go to GitHub Actions → "CDK Deploy" → Run workflow
+
+GitHub Actions will:
 1. Bootstrap CDK (if needed)
 2. Build and push Docker image to ECR
 3. Deploy the stack
@@ -113,6 +133,28 @@ npx cdk diff     # Show changes
 npx cdk deploy   # Deploy stack (builds Docker image automatically)
 ```
 
+## What Was Accomplished
+
+This project was a frugal AWS architecture overhaul:
+
+### Cost Optimizations
+- ❌ Removed Secrets Manager ($0.40/month saved)
+- ❌ Removed CloudWatch Alarms (user won't check them)
+- ❌ Removed SNS topics and Dead Letter Queues
+- ✅ Switched to SSM Parameter Store (free tier)
+- ✅ 3-day CloudWatch log retention (minimal cost)
+
+### Technical Decisions
+- **Docker-based Lambda** instead of layers (more reliable, avoids layer permission issues)
+- **x86_64 architecture** (better Docker compatibility than ARM64)
+- **Playwright + Chromium** built into container (avoided Sparticuz layer access issues)
+- **Manual deployment** to prevent accidental pushes triggering jobs
+
+### CI/CD Improvements
+- Updated to CDK 2.177, TypeScript 5.7
+- Docker buildx for multi-platform builds
+- Removed npm cache (no lock file requirement)
+
 ## Troubleshooting
 
 **No notifications?**
@@ -134,6 +176,30 @@ npx cdk deploy   # Deploy stack (builds Docker image automatically)
 **Docker build fails?**
 - Ensure Docker is running locally
 - Check GitHub Actions has Docker permissions (uses setup-buildx-action)
+
+## Using This Project
+
+If you want to use this for your own bin collection:
+
+1. **Fork the repository**
+2. **Update secrets** in your fork
+3. **Re-enable deployment** by uncommenting the push trigger in `.github/workflows/cdkdeploy.yaml`:
+   ```yaml
+   on:
+     push:
+       branches: [main]
+       paths:
+         - 'cdk/**'
+         - 'lambda/**'
+         - '.github/workflows/**'
+     # workflow_dispatch:  # Remove this line
+   ```
+4. **Adjust the scraper** in `lambda/shropshire/main.py` for your council's website
+5. **Deploy** via GitHub Actions
+
+## GitHub Repository Settings
+
+**About statement:** *Shropshire Council bin collection reminders via AWS Lambda + Telegram*
 
 ## License
 
